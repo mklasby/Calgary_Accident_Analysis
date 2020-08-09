@@ -8,6 +8,8 @@ from geojson import Point, MultiLineString, Polygon
 import geopandas as gpd
 import re
 import folium
+# import urllib as url
+# import requests
 
 
 class Model:
@@ -18,20 +20,60 @@ class Model:
     def __init__(self):
         self.dfs = {}
         incidents_df = pd.read_csv('Traffic_Incidents.csv')
+        incidents_df = self.get_2018_inc(incidents_df)
         speeds_df = pd.read_csv('Speed_Limits.csv')
         cameras_df = pd.read_csv('Traffic_Camera_Locations.csv')
         signals_df = pd.read_csv('Traffic_Signals.csv')
         signs_df = pd.read_csv('Traffic_Signs.csv')
         volumes_df = pd.read_csv('Traffic_Volumes_for_2018.csv')
         cells_df = self.get_cells_df()
+        # time specific data
+        self.temporal_df = self.get_temporal_data()
+        # static data
         self.dfs = {'speeds': speeds_df,  # line geometry
                     'volumes': volumes_df,  # line geometry
                     'incidents': incidents_df,  # point geometry
                     'cameras': cameras_df,  # point geometry
                     'signals': signals_df,  # point geometry
                     'signs': signs_df,  # point geometry
-                    'cells': cells_df  # polygon geometry
+                    'cells': cells_df,  # polygon geometry
                     }
+
+    def get_temporal_data(self):
+        weather_df = pd.DataFrame()
+        for i in range(1, 13):
+            print(f'Getting weather at yyc for month {i} in 2018')
+            month = self.get_weather(50430, 2018, i)
+            weather_df = weather_df.append(month, ignore_index=True)
+        weather_df['date'] = pd.to_datetime(weather_df['Date/Time'])
+
+        incidents = pd.read_csv('Traffic_Incidents.csv')
+        incidents['date'] = pd.to_datetime(incidents['START_DT'])
+        mask_2018 = incidents['date'].dt.year == 2018
+        incidents = incidents[mask_2018]
+        incidents = incidents.resample('H', on='date')['Count'].count()
+        incidents.name = 'incidents'
+
+        temporal_df = pd.merge(weather_df, incidents, on='date')
+        return temporal_df
+
+    def get_weather(self, station, year, month, daily=False):
+        """ returns a dataframe with weather data from climate.weather.gc.ca"""
+        # TODO: Refactor
+        if daily:
+            timeframe = 2
+        else:
+            timeframe = 1
+
+        url_template = "https://climate.weather.gc.ca/climate_data/bulk_data_e.html?format=csv&stationID={station}&Year={year}&Month={month}&Day=14&timeframe={timeframe}&submit=Download+Data"
+        url = url_template.format(
+            station=station, year=year, month=month, timeframe=timeframe)
+        weather_data = pd.read_csv(
+            url)
+
+        weather_data.columns = [col.replace(
+            '\xb0', '') for col in weather_data.columns]
+        return weather_data
 
     def get_yyc_bounds(self):
         yyc_map = pd.read_csv('City_Boundary_layer.csv')
@@ -135,7 +177,8 @@ class Model:
         elif geo_col_name in poly_col_names:
             # TODO: Deal with polygons
             return
-        return
+        else:  # skip temporal data
+            return
 
     def add_cell_col(self, df_name):
         df = self.dfs[df_name]
@@ -186,3 +229,35 @@ class Model:
             i += 1
         flipped = list(zip(lats, lons))
         return flipped
+
+    def get_avg_speed(self, cell_idx):
+        '''
+        calculates average speed based on cell index 
+        '''
+        speed_sum = 0
+        num_points = 0
+        speeds = self.dfs['speeds']
+        for _, row in speeds[['cell', 'SPEED']].iterrows():
+            cell_dict = row['cell']
+            speed = row['SPEED']
+            if cell_idx in cell_dict:
+                these_points = cell_dict[cell_idx]
+                speed_sum += speed*these_points
+                num_points += these_points
+        if num_points == 0:
+            return np.nan
+        return speed_sum/num_points
+
+    def count_incidents(self, cell_idx):
+        incidents = self.dfs('incidents')
+        counter = 0
+        for _, cell in incidents['cell'].items():
+            if cell_idx == cell:
+                counter += 1
+        return counter
+
+    def get_2018_inc(self, df):
+        df['date'] = pd.to_datetime(df['START_DT'])
+        mask_2018 = df['date'].dt.year == 2018
+        df = df.loc[mask_2018]
+        return df

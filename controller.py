@@ -17,16 +17,18 @@ class Controller:
             print(keyword, '\n', df.head())
 
     def get_frame(self, df_name):
+        if df_name == 'temporal':
+            return self.mdl.temporal_df
         return self.mdl.dfs[df_name]
 
     def add_geo_cols(self):
         df_names = self.mdl.dfs.keys()
         geo_cols = ['multiline', 'multilinestring',
-                    'location', None, 'Point', 'POINT', 'cell_bounds']
-        flip_list = [True, True, False, True, True, True, False]
+                    'location', None, 'Point', 'POINT', 'cell_bounds', None]
+        flip_list = [True, True, False, True, True, True, False, False]
         for name, col, flip in list(zip(df_names, geo_cols, flip_list)):
             print(
-                f'Creating geometry column in df {name} from {col}. Am I flipping coords? {flip}')
+                f'Adding geometry column to {name} from {col}. Flip coords? {flip}')
             self.mdl.add_geo_col(name, col, flip)
 
     def add_cell_col(self):
@@ -50,3 +52,6 @@ class Controller:
             "4"), color='red', tooltip='Analysis Boundary').add_to(mapa)
 
         mapa.save('index.html')
+
+    def get_cell_data():
+        return
