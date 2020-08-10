@@ -28,7 +28,8 @@ class Model:
         volumes_df = pd.read_csv('Traffic_Volumes_for_2018.csv')
         cells_df = self.get_cells_df()
         # time specific data
-        self.temporal_df = self.get_temporal_data()
+        # TODO: uncommment below to get temporal data
+        # self.temporal_df = self.get_temporal_data()
         # static data
         self.dfs = {'speeds': speeds_df,  # line geometry
                     'volumes': volumes_df,  # line geometry
@@ -85,15 +86,16 @@ class Model:
         sw = [float('+inf'), float('+inf')]
 
         # find maximum  /minumum coords
-        for point in geom['coordinates']:
-            if point[0] > ne[0]:
-                ne[0] = point[0]
-            if point[1] > ne[1]:
-                ne[1] = point[1]
-            if point[0] < sw[0]:
-                sw[0] = point[0]
-            if point[1] < sw[1]:
-                sw[1] = point[1]
+        for lines in geom['coordinates']:
+            for point in lines:
+                if point[0] > ne[0]:
+                    ne[0] = point[0]
+                if point[1] > ne[1]:
+                    ne[1] = point[1]
+                if point[0] < sw[0]:
+                    sw[0] = point[0]
+                if point[1] < sw[1]:
+                    sw[1] = point[1]
         return (ne, sw)
 
     def get_cells_df(self):
@@ -146,16 +148,22 @@ class Model:
         '''
         get coordinates from string data and convert to geojson object
         '''
-        cleaned = list(map(float, re.findall(r'[\-?\d\.?]+', s)))
         if to == 'Point':
+            cleaned = list(map(float, re.findall(r'[\-?\d\.?]+', s)))
             if flip:
                 cleaned = self.flip_coords(cleaned)
                 cleaned = [cleaned[0][0], cleaned[0][1]]
             return Point(cleaned)
 
         elif to == 'MultiLineString':
+            cleaned = []
+            lines = re.findall(r'\((.*?)\)', s)
+            for line in lines:
+                this_line = list(map(float, re.findall(r'[\-?\d\.?]+', line)))
             if flip:
-                cleaned = self.flip_coords(cleaned)
+                cleaned.append(self.flip_coords(this_line))
+            else:
+                cleaned.append(self.this_line)
             return MultiLineString(cleaned)
         else:
             return -1
@@ -186,7 +194,6 @@ class Model:
 
     def place_in_cell(self, geom):
         if isinstance(geom, Point):
-            # print(geom)
             lat = geom['coordinates'][0]
             lon = geom['coordinates'][1]
             for idx, cell in self.dfs['cells']['cell_bounds'].items():
@@ -199,14 +206,15 @@ class Model:
 
         elif isinstance(geom, MultiLineString):
             cell_counts = {}
-            for point in geom['coordinates']:
-                lat = point[0]
-                lon = point[1]
-                for idx, cell in self.dfs['cells']['cell_bounds'].items():
-                    sw = cell[0]
-                    ne = cell[1]
-                    if (lat >= sw[0]) and (lat < ne[0]) and (lon >= sw[1]) and (lon < ne[1]):
-                        cell_counts[idx] = cell_counts.get(idx, 0)+1
+            for lines in geom['coordinates']:
+                for point in lines:
+                    lat = point[0]
+                    lon = point[1]
+                    for idx, cell in self.dfs['cells']['cell_bounds'].items():
+                        sw = cell[0]
+                        ne = cell[1]
+                        if (lat >= sw[0]) and (lat < ne[0]) and (lon >= sw[1]) and (lon < ne[1]):
+                            cell_counts[idx] = cell_counts.get(idx, 0)+1
             return cell_counts
 
         elif isinstance(geom, Polygon):

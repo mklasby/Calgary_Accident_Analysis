@@ -8,8 +8,6 @@ from folium.plugins import HeatMap
 
 
 class Controller:
-    def get_map(self):
-        return self.mapa
 
     def load_data(self):
         print('Loading Data...')
@@ -46,16 +44,18 @@ class Controller:
     def generate_map(self):
         width, height = 960, 600
         ne, sw = self.mdl.get_yyc_bounds()
-        self.mapa = folium.Map(location=ne, width=width,
-                               height=height, toFront=True)
+        mapa = folium.Map(location=ne, width=width,
+                          height=height, toFront=True)
 
         for cell in self.get_frame('cells')['cells']:
-            cell.add_to(self.mapa)
+            cell.add_to(mapa)
 
         rect = folium.Rectangle(bounds=[ne, sw], weight=2, dash_array=(
-            "4"), color='red', tooltip='Analysis Boundary').add_to(self.mapa)
+            "4"), color='red', tooltip='Analysis Boundary').add_to(mapa)
 
-        self.mapa.save('index.html')
+        mapa.save('index.html')
+
+        self.mapa = mapa
 
     def get_cell_data():
         return
@@ -74,3 +74,6 @@ class Controller:
                 data.append([lat, lon])
                 heat_map = HeatMap(data, name="Volume")
                 heat_map.add_to(self.mapa)
+
+    def get_map(self):
+        return self.mapa
