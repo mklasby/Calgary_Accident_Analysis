@@ -1,11 +1,15 @@
+from folium.plugins import heat_map
 import pandas as pd
 import numpy as np
 import geojson
 from model import Model
 import folium
+from folium.plugins import HeatMap
 
 
 class Controller:
+    def get_map(self):
+        return self.mapa
 
     def load_data(self):
         print('Loading Data...')
@@ -42,16 +46,31 @@ class Controller:
     def generate_map(self):
         width, height = 960, 600
         ne, sw = self.mdl.get_yyc_bounds()
-        mapa = folium.Map(location=ne, width=width,
-                          height=height, toFront=True)
+        self.mapa = folium.Map(location=ne, width=width,
+                               height=height, toFront=True)
 
         for cell in self.get_frame('cells')['cells']:
-            cell.add_to(mapa)
+            cell.add_to(self.mapa)
 
         rect = folium.Rectangle(bounds=[ne, sw], weight=2, dash_array=(
-            "4"), color='red', tooltip='Analysis Boundary').add_to(mapa)
+            "4"), color='red', tooltip='Analysis Boundary').add_to(self.mapa)
 
-        mapa.save('index.html')
+        self.mapa.save('index.html')
 
     def get_cell_data():
         return
+
+    def gen_heatmap(self):
+        df = self.get_frame('volumes')
+        data = []  # lat, lng, weight
+        # TODO: https://github.com/python-visualization/folium/issues/1271
+
+        for _, row in df.iterrows():
+            volume = row['VOLUME']
+            geometry = row['geometry']['coordinates']
+            for points in geometry:
+                lat = float(geometry[0])
+                lon = float(geometry[1])
+                data.append([lat, lon])
+                heat_map = HeatMap(data, name="Volume")
+                heat_map.add_to(self.mapa)
