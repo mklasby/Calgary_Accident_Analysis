@@ -154,6 +154,26 @@ class Controller:
         cells['signal_count'] = signal_count
         cells['camera_count'] = camera_count
         print('...cell data generated.')
+        self.cell_analysis()
+
+    def cell_analysis(self):
+        print('Analyzing cell data...')
+        cells = self.get_frame('cells')
+        # TODO: Customize bin sizes if time permits
+        # NOTE: https://stackoverflow.com/questions/32552027/with-pandas-cut-how-do-i-get-integer-bins-and-avoid-getting-a-negative-lowe
+        # low, high = cells['volume_sum'].min(), cells['volume_sum'].max()
+        # n_bins = 10
+        # bin_edges = range(low, high, (high-low)/n_bins)
+        # labels = ['(%d, %d]' %(bin_edges[i], bin_edges[i+1]) for i in range(len(bin_edges)-1)]
+
+        cells['signal_bins'] = pd.cut(cells['signal_count'], bins=10)
+        cells['sign_bins'] = pd.cut(cells['sign_count'], bins=10)
+        cells['speed_bins'] = pd.cut(cells['avg_speed'], bins=10)
+        cells['volume_bins'] = pd.cut(cells['volume_sum'], bins=10)
+        cells['inc_per_mil_vol'] = \
+            cells['incident_count'] / (cells['volume_sum']/1000000)
+
+        print('...cells analyzed.')
 
     def count_points(self, cell_idx, df_name, col_name="cell"):
         df = self.get_frame(df_name)
