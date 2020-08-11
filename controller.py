@@ -6,7 +6,8 @@ from model import Model
 import folium
 from folium.plugins import HeatMap
 import branca.colormap as cm
-import math
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 
 class Controller:
@@ -21,8 +22,10 @@ class Controller:
             print(keyword, '\n', df.head())
 
     def get_frame(self, df_name):
-        if df_name == 'temporal':
-            return self.mdl.temporal_df
+        if df_name == 'daily':
+            return self.mdl.daily_df
+        if df_name == 'hourly':
+            return self.mdl.hourly_df
         return self.mdl.dfs[df_name]
 
     def add_geo_cols(self):
@@ -311,3 +314,103 @@ class Controller:
         heat_map.add_to(mapa)
         mapa.save('volume_map.html')
         print("map saved")
+
+    def melt_freeze(self, temps, freeze_temp, target=8):
+        '''
+        return pd.Series bool filter of  hours from 2018 such that Ti is an hour where the temperature fell below freeze_temp (C). Targets Ti are the ith hours after the freeze_temp occured. 
+
+        :Params:    temps: pd.Series of hourly temperatures degrees C
+                    freeze_temp: temperature of interest 
+                    target: number of temperatures to capture after the freeze_temp. 
+        :Returns:  pd.Series bool filter
+        '''
+        then = 0
+        now = 1
+        freeze = freeze_temp
+
+        # list of target hours
+        hours = []
+
+        # pivot + 8 hours
+        target = target
+
+        #  Assume typical dangerous freeze near midnight and we wish to capture the morning     rush hour between 6-8am .
+
+        while then < temps.size:
+            target_hours = []
+            try:
+                if temps[now] <= freeze and temps[then] > freeze:
+                    # print('hit')
+                    idx = 0
+                    while idx < target:
+                        target_hours.append(now+idx)
+                        idx += 1
+                    hours.append(target_hours)
+                then += 1
+                now += 1
+            except:
+                then += 1
+                now += 1
+                continue
+
+        mask_indices = []
+        for targets in hours:
+            for target in targets:
+                if target in mask_indices:
+                    continue
+                else:
+                    mask_indices.append(target)
+
+        mask = []
+        idx = 0
+        while idx < temps.size:
+            if idx in mask_indices:
+                mask.append(True)
+            else:
+                mask.append(False)
+            idx += 1
+        mask = pd.Series(mask)
+        print(f'There were {len(hours)} melt-freeze cycles in 2018!')
+        return(mask)
+
+    def get_super_plot(self, df, target_text, target_col, responding_col, x_label, y_label, title, binned=False, bin_col=None):
+        fig, ((dist_ax, box_ax), (point_ax, line_ax)) = plt.subplots(
+            nrows=2, ncols=2, figsize=(18, 12), )
+
+        sns.distplot(df[target_col], kde=False, ax=dist_ax)
+        dist_ax.set_xlabel(f'Count of {target_text}')
+        dist_ax.set_ylabel(f'Frequency of {target_text} by Cell')
+        dist_ax.set_title(f'Frequency of {target_text} Count by Cell')
+
+        if binned:
+            box_point_x = bin_col
+        else:
+            box_point_x = target_col
+
+        sns.boxplot(x=box_point_x, y=responding_col, data=df, ax=box_ax)
+        box_ax.set_xlabel(x_label)
+        box_ax.set_ylabel(y_label)
+        box_ax.set_title(title)
+
+        sns.pointplot(x=box_point_x, y=responding_col,
+                      hue=None, data=df, ax=point_ax)
+        point_ax.set_xlabel(x_label)
+        point_ax.set_ylabel(y_label)
+        point_ax.set_title(title)
+        if binned:
+            box_ax.set_xticklabels(box_ax.get_xticklabels(),
+                                   rotation=40, ha='right')
+            point_ax.set_xticklabels(
+                point_ax.get_xticklabels(), rotation=40, ha='right')
+
+        sns.lineplot(x=target_col, y=responding_col, hue=None,
+                     data=df, ax=line_ax, err_style=None)
+        line_ax.set_xlabel(x_label)
+        line_ax.set_ylabel(y_label)
+        line_ax.set_title(title)
+
+        fig.suptitle(f'Incidents vs. {target_text}', size='xx-large')
+        fig.tight_layout(pad=5)
+        fig.show()
+        plt.savefig(f'./plots/Incidents vs {target_text}.png')
+        return fig

@@ -29,7 +29,7 @@ class Model:
         cells_df = self.get_cells_df()
         # time specific data
         # TODO: uncommment below to get temporal data
-        self.temporal_df = self.get_temporal_data()
+        self.hourly_df, self.daily_df = self.get_temporal_data()
 
         # static data
         self.dfs = {'speeds': speeds_df,  # line geometry
@@ -56,8 +56,24 @@ class Model:
         incidents = incidents.resample('H', on='date')['Count'].count()
         incidents.name = 'incidents'
 
-        temporal_df = pd.merge(weather_df, incidents, on='date')
-        return temporal_df
+        hourly_df = pd.merge(weather_df, incidents, on='date')
+        daily_df = hourly_df.copy(deep=True)
+
+        hourly_df['temp_bins'] = pd.cut(
+            hourly_df['Temp (C)'], bins=[-30, -25, -20, -15, -10, -5, 0, 5, 10, 15, 20, 25, 30, 35, 40])
+        hourly_df['vis_bins'] = pd.cut(hourly_df['Visibility (km)'], bins=[
+                                       0, 1, 2, 3, 5, 10, 20, 40, 80])
+
+        daily_df = daily_df[['date', 'incidents', 'Visibility (km)', 'Temp (C)']].resample(
+            'D', on='date').agg({'incidents': np.sum, 'Visibility (km)': np.mean, 'Temp (C)': np.mean})
+        daily_df.rename(columns={'incidents': 'sum_daily_incidents',
+                                 'Visibility (km)': 'avg_daily_vis', 'Temp (C)': 'avg_daily_temp'}, inplace=True)
+        daily_df['temp_bins'] = pd.cut(
+            daily_df['avg_daily_temp'], bins=[-30, -25, -20, -15, -10, -5, 0, 5, 10, 15, 20, 25, 30, 35, 40])
+        daily_df['vis_bins'] = pd.cut(daily_df['avg_daily_vis'], bins=[
+                                      0, 1, 2, 3, 5, 10, 20, 40, 80])
+
+        return hourly_df, daily_df
 
     def get_weather(self, station, year, month, daily=False):
         """ returns a dataframe with weather data from climate.weather.gc.ca"""
