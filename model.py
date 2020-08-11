@@ -29,7 +29,8 @@ class Model:
         cells_df = self.get_cells_df()
         # time specific data
         # TODO: uncommment below to get temporal data
-        # self.temporal_df = self.get_temporal_data()
+        self.temporal_df = self.get_temporal_data()
+
         # static data
         self.dfs = {'speeds': speeds_df,  # line geometry
                     'volumes': volumes_df,  # line geometry
@@ -114,6 +115,8 @@ class Model:
                 points.append([row, col])
 
         cells = []
+        vol_cells = []
+        speed_cells = []
         cell_bounds = []
         geometry = []
         cell_idx = 0
@@ -130,18 +133,9 @@ class Model:
 
                 # cell bounds, sw and ne corners
                 cell_bounds.append([bottom_left, top_right])
-
-                # TODO: Add geoJSON polygon class to geometry colum
-                # geometry.append(Polygon([])
-
-                # Store cells as folium rectangle objects, change tooltip here.
-                # TODO: Move to controller class
-                cells.append(folium.Rectangle(
-                    bounds=[bottom_left, top_right], tooltip=f'Cell: {cell_idx}'))
                 cell_idx += 1
 
-        cells_df = pd.DataFrame({'cells': cells, 'cell_bounds': cell_bounds})
-
+        cells_df = pd.DataFrame({'cell_bounds': cell_bounds})
         return cells_df
 
     def clean_geo_data(self, s: str, to="Point", flip=True):
