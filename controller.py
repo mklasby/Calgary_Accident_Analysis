@@ -1,3 +1,9 @@
+'''
+Controller
+The interface between the jupyter notebook View and data Model. Parses input from View
+and manipulates the model as required. Plotting functionality is implemented in this class.   
+'''
+
 from folium.plugins import heat_map
 import pandas as pd
 import numpy as np
@@ -11,6 +17,9 @@ import seaborn as sns
 
 
 class Controller:
+    '''
+    Interface between view and model 
+    '''
 
     def load_data(self):
         print('Loading Data...')
@@ -22,6 +31,9 @@ class Controller:
             print(keyword, '\n', df.head())
 
     def get_frame(self, df_name):
+        '''
+        Queries model for a df by df_name
+        '''
         if df_name == 'daily':
             return self.mdl.daily_df
         if df_name == 'hourly':
@@ -29,6 +41,9 @@ class Controller:
         return self.mdl.dfs[df_name]
 
     def add_geo_cols(self):
+        '''
+        Add GEOJSON object to each dataframe with Coordinate data under new column 'geometry'
+        '''
         df_names = self.mdl.dfs.keys()
         geo_cols = ['multiline', 'multilinestring',
                     'location', None, 'Point', 'POINT', 'cell_bounds', None]
@@ -39,6 +54,10 @@ class Controller:
             self.mdl.add_geo_col(name, col, flip)
 
     def add_cell_col(self):
+        '''
+        Adds cell column to each dataframe with coordinate data. Each row will be placed 
+        into a cell, or cells for a multiline string, depending on Coordinate data in that row.
+        '''
         df_names = self.mdl.dfs.keys()
         for name in df_names:
             if name == "cells":
@@ -55,14 +74,16 @@ class Controller:
 
         populates cell_df with folium rectangle objects
         '''
-
         tips = ''
-
         for k, v in tooltips.items():
             tips += f'{k}: {v}\n'
         return folium.Rectangle(bounds=bounds, tooltip=tips)
 
     def generate_maps(self):
+        '''
+        Generates 3 folium map objects with city bounds and cells overlaid on each.
+        Maps stored as instance varible. 
+        '''
         print('Generating maps...')
         width, height = 960, 600
         ne, sw = self.mdl.get_yyc_bounds()
@@ -130,6 +151,9 @@ class Controller:
         print('...maps generated.')
 
     def get_cell_data(self):
+        '''
+        Adds static data to cells df for each static (time independent) df 
+        '''
         print('Generating cell data...')
         cells = self.get_frame('cells')
 
@@ -160,6 +184,9 @@ class Controller:
         self.cell_analysis()
 
     def cell_analysis(self):
+        '''
+        Add bins to cell df and calculates incidents per million trips
+        '''
         print('Analyzing cell data...')
         cells = self.get_frame('cells')
         # TODO: Customize bin sizes if time permits
@@ -175,10 +202,18 @@ class Controller:
         cells['volume_bins'] = pd.cut(cells['volume_sum'], bins=10)
         cells['inc_per_mil_vol'] = \
             cells['incident_count'] / (cells['volume_sum']/1000000)
+        self.get_cell_coords()
 
         print('...cells analyzed.')
 
     def count_points(self, cell_idx, df_name, col_name="cell"):
+        '''
+        Counts coord pairs within a cell and returns count
+        :param: cell_idx: the index of the cell to check for points within
+        :param: df_name the dataframe we are contining cells in 
+        :param: col_name the column where we can find the cell location for each row
+
+        '''
         df = self.get_frame(df_name)
         # print(f'testing cell {cell_idx}')
         counter = 0
@@ -188,6 +223,12 @@ class Controller:
         return counter
 
     def get_cell_vol(self, cell_idx):
+        '''
+        Returns the sum of volumes within a cell at cell_idx. 
+        NOTE: Volumes are not normalized by point count or road distance, but simply summed. 
+        We cannot normalize this data as we do not have the coord of the traffic counter (typically
+        conducted at a single point). 
+        '''
         df = self.get_frame('volumes')
         volume_sum = 0
         num_points = 0
@@ -201,11 +242,19 @@ class Controller:
                 volume_sum += volume
                 num_points += these_points
         if num_points == 0:
+            # if we have no data points, we cannot assume zero volume.
+            # Therefore, fill with NaN to including in futher analysis.
             return np.nan
             # return 0
         return volume_sum
 
     def get_avg_speed(self, cell_idx):
+        '''
+        Populates cells df with average speed per column. 
+        NOTE: The speeds are normalized based on number of coordinate points for each
+        road that we have data for. For eg., if we have 5 points at 50kph and 1 point at
+        100kph, the average cell speed is (50*5 + 100*1)/(5+1) = 58.33kph
+        '''
         speeds = self.get_frame('speeds')
         speed_sum = 0
         num_points = 0
@@ -221,22 +270,7 @@ class Controller:
         if num_points == 0:
             return np.nan
             # return 0
-        return round(speed_sum/num_points, 2)
-
-    def gen_heatmap(self):
-        df = self.get_frame('volumes')
-        data = []  # lat, lng, weight
-        # TODO: https://github.com/python-visualization/folium/issues/1271
-
-        for _, row in df.iterrows():
-            volume = row['VOLUME']
-            geometry = row['geometry']['coordinates']
-            for points in geometry:
-                lat = float(geometry[0])
-                lon = float(geometry[1])
-                data.append([lat, lon])
-                heat_map = HeatMap(data, name="Volume")
-                heat_map.add_to(self.volume_map)
+        return round(speed_sum/num_points, 2)  # round to 2 decimals
 
     def get_map(self, s):
         if s == "cell_map":
@@ -246,28 +280,34 @@ class Controller:
         elif s == "volume_map":
             return self.volume_map
 
-    def get_speed_list(self, geom, speed, street_name):
-        # print(geom)
+    def get_polylines(self, geom, data, meta_data):
+        '''
+        Gets point cloud of speed/volume data in form of [ [lat, lon], speed/volume, tooltip name ]
+        for plotting to maps. 
+        :param: geom: this road segment's geometry
+        :param: speed: this road's data
+        :param: street_name: name of street to display in tooltip
+        :returns: point cloud
+
+        '''
         point_cloud = []
-        tooltip = f'{street_name} speed limit: {speed}'
+        tooltip = f'{meta_data}: {data}'
         for lines in geom['coordinates']:
             for points in lines:
                 lat = float(points[0])
                 lon = float(points[1])
-                point_cloud.append([[lat, lon], speed, tooltip])
+                point_cloud.append([[lat, lon], data, tooltip])
         return point_cloud
 
     def draw_speed_map(self):
-        '''get speed map
-        @args: speed_frame :pd.DataFrame to map
-        @return folium map NOTE: front end will simply render map.html from assets
+        '''get speed map, save to file and overwrite self.speed_map
         '''
         mapa = self.get_map('speed_map')
         df = self.get_frame('speeds')
         color_map = cm.LinearColormap(
             colors=['yellow', 'red'], vmin=df['SPEED'].min(), vmax=df['SPEED'].max())
 
-        df['speed_lines'] = df.apply(lambda row: self.get_speed_list(
+        df['speed_lines'] = df.apply(lambda row: self.get_polylines(
             row['geometry'], row['SPEED'], row['STREET_NAME']), axis=1)
 
         df = df.sort_values(by='SPEED', ascending=False)
@@ -288,7 +328,41 @@ class Controller:
         mapa.save('speed_map.html')
         print("map saved")
 
+    def add_volume_polylines(self):
+        '''add volume polylines to volume heatmap and overwrite self.volume_map
+        '''
+        mapa = self.get_map('volume_map')
+        df = self.get_frame('volumes')
+        color_map = cm.LinearColormap(
+            colors=['green', 'red'], vmin=df['VOLUME'].min(), vmax=df['VOLUME'].max())
+
+        df['volume_lines'] = df.apply(lambda row: self.get_polylines(
+            row['geometry'], row['VOLUME'], row['SECNAME']), axis=1)
+
+        df = df.sort_values(by='VOLUME', ascending=False)
+
+        for points in df['volume_lines'].tolist():
+            locations = []
+            colors = []
+            tooltip = points[0][2]
+            for point in points:
+                loc = point[0]
+                color = point[1]
+                tooltip = point[2]
+                locations.append(loc)
+                colors.append(color)
+            this_line = folium.PolyLine(
+                locations=locations, tooltip=tooltip, color=color_map(color))
+            this_line.add_to(mapa)
+
     def get_heat_points(self, geom, volume, vol_normalization):
+        '''
+        Gets heat map point cloud from df row
+        :param: geom = geojson object (point or multilinestring)
+        :param: volume = traffic volume of road
+        :param: vol_normalization: metric to normalize vol with
+        :return: point cloud data in form [lat, lon, volume_normalized]
+        '''
         point_cloud = []
         vol_norm = volume/vol_normalization
         for lines in geom['coordinates']:
@@ -299,6 +373,12 @@ class Controller:
         return point_cloud
 
     def gen_heatmap(self):
+        '''
+        Generate volume heatmap based on data in volumes df. 
+        Volumes normalized by volume median
+        NOTE: Requires unreleased version 0.12 of folium, see below: 
+        https://github.com/python-visualization/folium/issues/1271
+        '''
         mapa = self.get_map('volume_map')
         df = self.get_frame('volumes')
         data = []  # lat, lng, weight
@@ -312,6 +392,7 @@ class Controller:
                 data.append(point)
         heat_map = HeatMap(data, radius=10, blur=15)
         heat_map.add_to(mapa)
+        self.add_volume_polylines()
         mapa.save('volume_map.html')
         print("map saved")
 
@@ -374,6 +455,21 @@ class Controller:
         return(mask)
 
     def get_super_plot(self, df, target_text, target_col, responding_col, x_label, y_label, title, binned=False, bin_col=None):
+        '''
+        Convenience function for creating plt.subplots from parameter inputs. 
+        :params:
+                    df: dataframe to plot from
+                    target_text: string for titles and axis labels
+                    target_col: column title from df to plot to x axis
+                    responding_col: column title from df to plot to y axis
+                    x_label: label for x axis on most plots
+                    y_label: label for y axis on most plots
+                    title: title of sub plots
+                    binned: if true, will plot binned data for point and box plots
+                    bin_col: column name where binned data stored
+        :return:    plt.fig object
+
+        '''
         fig, ((dist_ax, box_ax), (point_ax, line_ax)) = plt.subplots(
             nrows=2, ncols=2, figsize=(18, 12), )
 
@@ -397,6 +493,7 @@ class Controller:
         point_ax.set_xlabel(x_label)
         point_ax.set_ylabel(y_label)
         point_ax.set_title(title)
+
         if binned:
             box_ax.set_xticklabels(box_ax.get_xticklabels(),
                                    rotation=40, ha='right')
@@ -414,3 +511,33 @@ class Controller:
         fig.show()
         plt.savefig(f'./plots/Incidents vs {target_text}.png')
         return fig
+
+    def get_cell_coords(self):
+        '''
+        Adds x, y coords as colums in cells df for each cell from cell index
+        '''
+        cells = self.get_frame('cells')
+        cells_idx = list(cells.index)
+        x_coords = []
+        y_coords = []
+        for idx in cells_idx:
+            y_coords.append(idx // 10)
+            x_coords.append(idx % 10)
+        cells['x_coord'], cells['y_coord'] = x_coords, y_coords
+
+    def cell_heatmap(self, df_name, col_name, ax, title):
+        '''
+        Gets seaborn heatmap plot axis for cell wise observations
+        :params:
+                df_name: name of df to plot
+                col_name: name of column to plot data from
+                ax: ax to plot data to
+                title: title for ax
+        :mutates: ax provided 
+        '''
+        df = self.get_frame(df_name)
+        geo = df.groupby(['y_coord', 'x_coord'])[col_name].sum().unstack()
+        ax = sns.heatmap(geo, annot=False, yticklabels=True, ax=ax)
+        ax.set_title(title)
+        ax.set_xlim(0, 10)
+        ax.set_ylim(0, 10)

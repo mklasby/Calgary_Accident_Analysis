@@ -1,4 +1,8 @@
-# model.py
+'''
+Model
+The data layer of our project. This class stores the various dataframes used in our
+analysis and manipulates data views at request of controller class. 
+'''
 
 from geojson import geometry
 import numpy as np
@@ -27,6 +31,7 @@ class Model:
         signs_df = pd.read_csv('Traffic_Signs.csv')
         volumes_df = pd.read_csv('Traffic_Volumes_for_2018.csv')
         cells_df = self.get_cells_df()
+
         # time specific data
         # TODO: uncommment below to get temporal data
         self.hourly_df, self.daily_df = self.get_temporal_data()
@@ -42,6 +47,12 @@ class Model:
                     }
 
     def get_temporal_data(self):
+        '''
+        Gets time dependent data and joins with incident data. 
+        Adds pd.datetime column for grouping data
+        Adds time dependent data bins for plotting
+        Splits data into hourly and daily dataframes
+        '''
         weather_df = pd.DataFrame()
         for i in range(1, 13):
             print(f'Getting weather at yyc for month {i} in 2018')
@@ -76,8 +87,16 @@ class Model:
         return hourly_df, daily_df
 
     def get_weather(self, station, year, month, daily=False):
-        """ returns a dataframe with weather data from climate.weather.gc.ca"""
-        # TODO: Refactor
+        ''' 
+        Gets climate data from climate.weather.gc.ca
+        :params: 
+                station: station to pull data from
+                year: year to pull data from
+                month: month to pull data from
+                daily = sets timeframe parameter in url parameter
+        :returns: requested weather data in dataframe
+
+        '''
         if daily:
             timeframe = 2
         else:
@@ -94,6 +113,9 @@ class Model:
         return weather_data
 
     def get_yyc_bounds(self):
+        '''
+        Gets max/min lat and lon to plot city boundary
+        '''
         yyc_map = pd.read_csv('City_Boundary_layer.csv')
         geom = yyc_map.the_geom[0]
         geom = MultiLineString(self.clean_geo_data(
@@ -117,7 +139,8 @@ class Model:
 
     def get_cells_df(self):
         '''
-        Create cell dfs add to self.dfs, bounds geometry
+        Create cell dfs and adds to self.dfs
+        Populates cell geometry in df
         '''
         ne, sw = self.get_yyc_bounds()
 
@@ -129,12 +152,7 @@ class Model:
         for col in cols:
             for row in rows:
                 points.append([row, col])
-
-        cells = []
-        vol_cells = []
-        speed_cells = []
         cell_bounds = []
-        geometry = []
         cell_idx = 0
         for idx_y, row in enumerate(rows):
             if idx_y == 10:
@@ -143,9 +161,7 @@ class Model:
                 if idx_x == 10:
                     break
                 bottom_left = [rows[idx_y], cols[idx_x]]
-                bottom_right = [rows[idx_y], cols[idx_x]+1]
                 top_right = [rows[idx_y+1], cols[idx_x+1]]
-                top_left = [rows[idx_y]+1, cols[idx_x]]
 
                 # cell bounds, sw and ne corners
                 cell_bounds.append([bottom_left, top_right])
@@ -157,6 +173,11 @@ class Model:
     def clean_geo_data(self, s: str, to="Point", flip=True):
         '''
         get coordinates from string data and convert to geojson object
+        :params: 
+                s: string to clean, expecting Point or multilinestring from csv
+                to: geojson object to convert to
+                flip: if true, flips lon lat pairs to lat lon
+        :return: geojson object point or multilinestring
         '''
         if to == 'Point':
             cleaned = list(map(float, re.findall(r'[\-?\d\.?]+', s)))
@@ -179,6 +200,13 @@ class Model:
             return -1
 
     def add_geo_col(self, df_name, geo_col_name='Point', flip=True):
+        '''
+        Adds geometry column to dataframe which will contain a geojson representation of messy
+        string coord data in csv
+        :params:    df_name: name of df to add column to 
+                    geo_col_name: name of column where string coord data is found
+                    flip: boolean, will flip lon lat to lat lon
+        '''
         df = self.dfs[df_name]
         point_col_names = ['Point', 'POINT', 'location']
         mls_col_names = ['multiline', 'multilinestring']
@@ -193,16 +221,26 @@ class Model:
             df['geometry'] = list(zip(df['latitude'], df['longitude']))
             df['geometry'] = df['geometry'].apply(lambda x: Point(x))
         elif geo_col_name in poly_col_names:
-            # TODO: Deal with polygons
+            # Polygon data not required.
             return
-        else:  # skip temporal data
+        else:  # temporal data not requred.
             return
 
     def add_cell_col(self, df_name):
+        '''
+        Applys place_in_cell lambda function to df named df_name 
+        '''
         df = self.dfs[df_name]
         df['cell'] = df['geometry'].apply(lambda x: self.place_in_cell(x))
 
     def place_in_cell(self, geom):
+        '''
+        places geojson object within a cell (or cells for multiline)
+        :param: geom: geojson Point or MultiLineString object
+        :returns:
+                    if geom isa Point: cell idx where point exists
+                    if geom isa multiLineString: dict in form of {cell_idx: num_points in cell, cell_idx...}
+        '''
         if isinstance(geom, Point):
             lat = geom['coordinates'][0]
             lon = geom['coordinates'][1]
@@ -228,12 +266,13 @@ class Model:
             return cell_counts
 
         elif isinstance(geom, Polygon):
-            # TODO: implement if neeeded
+            # NOTE: Polygon not used, return warning below if accidently passed to function
             return ('?POLYGON?')
 
     def flip_coords(self, coords):
         '''
         flips all elements of list such that [x,y,i,j] = [ [y,x], [j,i] ]
+        :return: flipped list
         '''
         flipped = []
         lats = []
@@ -248,33 +287,12 @@ class Model:
         flipped = list(zip(lats, lons))
         return flipped
 
-    def get_avg_speed(self, cell_idx):
-        '''
-        calculates average speed based on cell index 
-        '''
-        speed_sum = 0
-        num_points = 0
-        speeds = self.dfs['speeds']
-        for _, row in speeds[['cell', 'SPEED']].iterrows():
-            cell_dict = row['cell']
-            speed = row['SPEED']
-            if cell_idx in cell_dict:
-                these_points = cell_dict[cell_idx]
-                speed_sum += speed*these_points
-                num_points += these_points
-        if num_points == 0:
-            return np.nan
-        return speed_sum/num_points
-
-    def count_incidents(self, cell_idx):
-        incidents = self.dfs('incidents')
-        counter = 0
-        for _, cell in incidents['cell'].items():
-            if cell_idx == cell:
-                counter += 1
-        return counter
-
     def get_2018_inc(self, df):
+        '''
+        Filters incident df for only dates in 2018.
+        :param: dataframe to filer
+        :returns: filtered df
+        '''
         df['date'] = pd.to_datetime(df['START_DT'])
         mask_2018 = df['date'].dt.year == 2018
         df = df.loc[mask_2018]
