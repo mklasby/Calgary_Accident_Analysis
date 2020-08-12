@@ -225,7 +225,8 @@ class Controller:
     def get_cell_vol(self, cell_idx):
         '''
         Returns the sum of volumes within a cell at cell_idx. 
-        NOTE: Volumes are normalized by point count. 
+        NOTE: Volumes are NOT normalized by point count, we are interested in the
+        total number of vehicles within the cell. 
         '''
         df = self.get_frame('volumes')
         volume_sum = 0
@@ -234,17 +235,18 @@ class Controller:
             cell_dict = row['cell']
             volume = row['VOLUME']
             if cell_idx in cell_dict:
-                # print(f'{cell_idx} is in {cell_dict}')
+                print(f'{cell_idx} is in {cell_dict} with volume {volume}')
                 these_points = cell_dict[cell_idx]
-                # print(f'these points = {these_points}')
-                volume_sum += volume*these_points
+                print(f'these points = {these_points}')
+                volume_sum += volume
                 num_points += these_points
         if num_points == 0:
             # if we have no data points, we cannot assume zero volume.
             # Therefore, fill with NaN to including in futher analysis.
             return np.nan
             # return 0
-        return round(volume_sum/num_points, 2)
+        print(volume_sum)
+        return round(volume_sum)
 
     def get_avg_speed(self, cell_idx):
         '''
