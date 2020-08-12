@@ -235,9 +235,9 @@ class Controller:
             cell_dict = row['cell']
             volume = row['VOLUME']
             if cell_idx in cell_dict:
-                print(f'{cell_idx} is in {cell_dict} with volume {volume}')
+                # print(f'{cell_idx} is in {cell_dict} with volume {volume}')
                 these_points = cell_dict[cell_idx]
-                print(f'these points = {these_points}')
+                # print(f'these points = {these_points}')
                 volume_sum += volume
                 num_points += these_points
         if num_points == 0:
@@ -245,7 +245,7 @@ class Controller:
             # Therefore, fill with NaN to including in futher analysis.
             return np.nan
             # return 0
-        print(volume_sum)
+        # print(volume_sum)
         return round(volume_sum)
 
     def get_avg_speed(self, cell_idx):
