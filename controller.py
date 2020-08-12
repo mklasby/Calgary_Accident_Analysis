@@ -507,7 +507,10 @@ class Controller:
         fig.suptitle(f'Incidents vs. {target_text}', size='xx-large')
         fig.tight_layout(pad=5)
         fig.show()
-        plt.savefig(f'./plots/Incidents vs {target_text}.png')
+        if responding_col == 'inc_per_mil_vol':
+            plt.savefig(f'./plots/Incidents vs {target_text}_normalised.png')
+        else:
+            plt.savefig(f'./plots/Incidents vs {target_text}.png')
         return fig
 
     def get_cell_coords(self):
