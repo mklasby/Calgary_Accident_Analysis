@@ -225,9 +225,7 @@ class Controller:
     def get_cell_vol(self, cell_idx):
         '''
         Returns the sum of volumes within a cell at cell_idx. 
-        NOTE: Volumes are not normalized by point count or road distance, but simply summed. 
-        We cannot normalize this data as we do not have the coord of the traffic counter (typically
-        conducted at a single point). 
+        NOTE: Volumes are normalized by point count. 
         '''
         df = self.get_frame('volumes')
         volume_sum = 0
@@ -239,14 +237,14 @@ class Controller:
                 # print(f'{cell_idx} is in {cell_dict}')
                 these_points = cell_dict[cell_idx]
                 # print(f'these points = {these_points}')
-                volume_sum += volume
+                volume_sum += volume*these_points
                 num_points += these_points
         if num_points == 0:
             # if we have no data points, we cannot assume zero volume.
             # Therefore, fill with NaN to including in futher analysis.
             return np.nan
             # return 0
-        return volume_sum
+        return round(volume_sum/num_points, 2)
 
     def get_avg_speed(self, cell_idx):
         '''
