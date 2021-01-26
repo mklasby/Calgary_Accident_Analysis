@@ -23,13 +23,13 @@ class Model:
 
     def __init__(self):
         self.dfs = {}
-        incidents_df = pd.read_csv('Traffic_Incidents.csv')
+        incidents_df = pd.read_csv('./data/Traffic_Incidents.csv')
         incidents_df = self.get_2018_inc(incidents_df)
-        speeds_df = pd.read_csv('Speed_Limits.csv')
-        cameras_df = pd.read_csv('Traffic_Camera_Locations.csv')
-        signals_df = pd.read_csv('Traffic_Signals.csv')
-        signs_df = pd.read_csv('Traffic_Signs.csv')
-        volumes_df = pd.read_csv('Traffic_Volumes_for_2018.csv')
+        speeds_df = pd.read_csv('./data/Speed_Limits.csv')
+        cameras_df = pd.read_csv('./data/Traffic_Camera_Locations.csv')
+        signals_df = pd.read_csv('./data/Traffic_Signals.csv')
+        signs_df = pd.read_csv('./data/Traffic_Signs.csv')
+        volumes_df = pd.read_csv('./data/Traffic_Volumes_for_2018.csv')
         cells_df = self.get_cells_df()
 
         # time specific data
@@ -58,9 +58,10 @@ class Model:
             print(f'Getting weather at yyc for month {i} in 2018')
             month = self.get_weather(50430, 2018, i)
             weather_df = weather_df.append(month, ignore_index=True)
-        weather_df['date'] = pd.to_datetime(weather_df['Date/Time'])
+        # print(weather_df)
+        weather_df['date'] = pd.to_datetime(weather_df['Date/Time (LST)'])
 
-        incidents = pd.read_csv('Traffic_Incidents.csv')
+        incidents = pd.read_csv('./data/Traffic_Incidents.csv')
         incidents['date'] = pd.to_datetime(incidents['START_DT'])
         mask_2018 = incidents['date'].dt.year == 2018
         incidents = incidents[mask_2018]
@@ -116,7 +117,7 @@ class Model:
         '''
         Gets max/min lat and lon to plot city boundary
         '''
-        yyc_map = pd.read_csv('City_Boundary_layer.csv')
+        yyc_map = pd.read_csv('./data/City_Boundary_layer.csv')
         geom = yyc_map.the_geom[0]
         geom = MultiLineString(self.clean_geo_data(
             geom, 'MultiLineString', True))

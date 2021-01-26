@@ -140,9 +140,9 @@ class Controller:
         rect2.add_to(self.speed_map)
         rect3.add_to(self.volume_map)
 
-        self.cell_map.save('cell_map.html')
-        self.speed_map.save('speed_map.html')
-        self.volume_map.save('volume_map.html')
+        self.cell_map.save('./html/cell_map.html')
+        self.speed_map.save('./html/speed_map.html')
+        self.volume_map.save('./html/volume_map.html')
 
         # Drop extra folium vector object series once we are done adding to maps
         cells = self.get_frame('cells')
@@ -325,7 +325,7 @@ class Controller:
             this_line = folium.PolyLine(
                 locations=locations, tooltip=tooltip, color=color_map(color))
             this_line.add_to(mapa)
-        mapa.save('speed_map.html')
+        mapa.save('./html/speed_map.html')
         print("map saved")
 
     def add_volume_polylines(self):
@@ -393,7 +393,7 @@ class Controller:
         heat_map = HeatMap(data, radius=10, blur=15)
         heat_map.add_to(mapa)
         self.add_volume_polylines()
-        mapa.save('volume_map.html')
+        mapa.save('./html/volume_map.html')
         print("map saved")
 
     def melt_freeze(self, temps, freeze_temp, target=8):
